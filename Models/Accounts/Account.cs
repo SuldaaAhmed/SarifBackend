@@ -2,7 +2,21 @@
 using Backend.Models.Setup;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+[HttpGet("account-type-lookup")]
 
+
+public IActionResult GetAccountTypes()
+{
+    var data = Enum.GetValues(typeof(AccountTypeEnum))
+        .Cast<AccountTypeEnum>()
+        .Select(x => new
+        {
+            id = (int)x,
+            name = x.ToString()
+        });
+
+    return Ok(data);
+}
 namespace Backend.Models.Accounts
 {
     public class Account : BaseEntity
