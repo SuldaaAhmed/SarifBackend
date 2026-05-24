@@ -50,8 +50,8 @@ namespace Backend.Services.Accounts
                 var entity = _mapper.Map<ExchangeRate>(dto);
 
                 entity.UserId = _currentUser.UserId;
-                entity.AgencyId =_currentUser.AgencyId;
-                entity.BranchId =_currentUser.BranchId;
+                entity.AgencyId = _currentUser.AgencyId;
+                entity.BranchId = _currentUser.BranchId;
                 entity.CreatedAt = DateTime.UtcNow;
                 entity.UpdatedAt = DateTime.UtcNow;
 
@@ -295,7 +295,7 @@ namespace Backend.Services.Accounts
 
 
 
-      
+
 
         // ================================
         // CREATE ACCOUNT
@@ -320,7 +320,7 @@ namespace Backend.Services.Accounts
                 entity.UpdatedAt = DateTime.UtcNow;
                 entity.Nature = AccountHelper.GetNature(entity.AccountType);
                 // 2. Default to current user's context if not provided
-                entity.AgencyId= _currentUser.AgencyId;
+                entity.AgencyId = _currentUser.AgencyId;
                 // Optionally handle BranchId logic here if required
 
                 _context.Accounts.Add(entity);
@@ -461,11 +461,11 @@ namespace Backend.Services.Accounts
         public async Task<ResponseWrapper<Guid>> CreateTransactionAsync(CreateTransactionRequest request)
         {
             if (string.IsNullOrWhiteSpace(_currentUser.UserId))
-                return await ResponseWrapper<Guid>.FailureAsync("Unauthorized","User not authenticated",
+                return await ResponseWrapper<Guid>.FailureAsync("Unauthorized", "User not authenticated",
                     401);
 
             if (request == null)
-                return await ResponseWrapper<Guid>.FailureAsync("Validation Error","Request cannot be null");
+                return await ResponseWrapper<Guid>.FailureAsync("Validation Error", "Request cannot be null");
 
             //  APPLY FOR EXCHANGE
             if (request.TransactionType == TransactionTypeEnum.Exchange)
@@ -628,6 +628,7 @@ namespace Backend.Services.Accounts
                     a.CurrencyId == currencyId &&
                     a.Name.Contains("Exchange Profit"));
 
+
             if (account == null)
                 throw new Exception($"Exchange Profit account lama helin currencyId: {currencyId}");
 
@@ -650,12 +651,15 @@ namespace Backend.Services.Accounts
         {
             var dto = request.Deposit;
 
-            var account = await GetAccountAsync(dto.AccountId);
-
-            var currencyId = account.CurrencyId;
-
+            // ✅ NULL CHECK HORE
             if (dto == null)
                 return await ResponseWrapper<Guid>.FailureAsync("Deposit required");
+
+            var account = await GetAccountAsync(dto.AccountId);
+            var currencyId = account.CurrencyId;
+
+            // ✅ KAN SOO BIXI DIBADDA - ka hor ExecuteWriteAsync
+            var customerPayableAccountId = await GetOrCreateCustomerPayableAccount(dto.CustomerId);
 
             return await ExecuteWriteAsync(async () =>
             {
@@ -663,45 +667,40 @@ namespace Backend.Services.Accounts
 
                 var referenceNo = GenerateReferenceNo();
 
-                var transaction = CreateBaseTransaction(
-                    request,
-                    dto.Amount,
-                    referenceNo
-                );
+                var transaction = CreateBaseTransaction(request, dto.Amount, referenceNo);
 
                 var details = new List<TransactionDetail>
-        {
-            // 🟢 DEBIT (Cash / Bank)
+                {
+
             new TransactionDetail
             {
                 Id = Guid.NewGuid(),
                 TransactionId = transaction.Id,
-                AccountId = dto.AccountId, // lacagta soo gashay
+                AccountId = dto.AccountId,
                 CurrencyId = currencyId,
                 Amount = dto.Amount,
-                EntryType = 1, // DEBIT
+                EntryType = 1,
                 UserId = _currentUser.UserId,
                 CreatedAt = DateTime.UtcNow
             },
 
-            // 🔴 CREDIT (Customer Liability / Payable)
-            new TransactionDetail
+
+                    new TransactionDetail
             {
                 Id = Guid.NewGuid(),
                 TransactionId = transaction.Id,
-                AccountId = await GetCustomerPayableAccount(dto.CustomerId),
+                AccountId = customerPayableAccountId, // ✅ variable isticmaal
                 CurrencyId = currencyId,
                 Amount = dto.Amount,
-                EntryType = 2, // CREDIT
+                EntryType = 2,
                 UserId = _currentUser.UserId,
                 CreatedAt = DateTime.UtcNow
             }
-        };
+                };
 
                 _context.Transactions.Add(transaction);
                 _context.TransactionDetails.AddRange(details);
 
-                // Optional: Deposit Table
                 _context.Deposits.Add(new Deposit
                 {
                     Id = Guid.NewGuid(),
@@ -713,7 +712,7 @@ namespace Backend.Services.Accounts
                     CurrencyId = currencyId,
                     AgencyId = _currentUser.AgencyId,
                     BranchId = _currentUser.BranchId,
-                    UserId =_currentUser.UserId,
+                    UserId = _currentUser.UserId,
                     CreatedAt = DateTime.UtcNow
                 });
 
@@ -736,8 +735,8 @@ namespace Backend.Services.Accounts
             var account = await GetAccountAsync(dto.AccountId);
             var currencyId = account.CurrencyId;
 
-            // 🔒 check balance
-            var customerAccountId = await GetCustomerPayableAccount(dto.CustomerId);
+            // ✅ GetOrCreate isticmaal - MAHA GetCustomerPayableAccount
+            var customerAccountId = await GetOrCreateCustomerPayableAccount(dto.CustomerId);
 
             var balance = await _context.TransactionDetails
                  .Where(x => x.AccountId == customerAccountId)
@@ -745,6 +744,8 @@ namespace Backend.Services.Accounts
 
             if (dto.Amount > balance)
                 return await ResponseWrapper<Guid>.FailureAsync("Insufficient balance");
+
+            // ... rest of code
 
             return await ExecuteWriteAsync(async () =>
             {
@@ -794,13 +795,13 @@ namespace Backend.Services.Accounts
                     AccountId = dto.AccountId,
                     CustomerId = dto.CustomerId,
                     Amount = dto.Amount,
-                    WithdrawNo = GenerateReferenceNo(),
+                    WithdrawNo = referenceNo,
                     CurrencyId = currencyId,
                     ReceiverName = dto.ReceiverName,
                     ReceiverIdCard = dto.ReceiverIdCard,
                     AgencyId = _currentUser.AgencyId,
                     BranchId = _currentUser.BranchId,
-                    UserId =_currentUser.UserId,
+                    UserId = _currentUser.UserId,
                     CreatedAt = DateTime.UtcNow
                 });
 
@@ -824,7 +825,7 @@ namespace Backend.Services.Accounts
             var account = await GetAccountAsync(dto.AccountId);
             var currencyId = account.CurrencyId;
 
-            var receivableAccountId = await GetCustomerReceivableAccount(dto.CustomerId);
+            var receivableAccountId = await GetOrCreateCustomerReceivableAccount(dto.CustomerId);
 
             return await ExecuteWriteAsync(async () =>
             {
@@ -882,7 +883,7 @@ namespace Backend.Services.Accounts
                     DueDate = dto.DueDate == null
                             ? null
                             : DateTime.SpecifyKind(dto.DueDate.Value, DateTimeKind.Utc),
-                    LoanNo =referenceNo,
+                    LoanNo = referenceNo,
                     PaidAmount = 0,
                     CurrencyId = currencyId,
                     AgencyId = _currentUser.AgencyId,
@@ -895,7 +896,7 @@ namespace Backend.Services.Accounts
                 await trx.CommitAsync();
 
                 return transaction.Id;
-                
+
             }, "Loan created", "Error creating loan");
         }
 
@@ -916,7 +917,11 @@ namespace Backend.Services.Accounts
                 return await ResponseWrapper<Guid>.FailureAsync("Loan not found");
 
             // 👉 receivable account (customer)
-            var receivableAccountId = await GetCustomerReceivableAccount(loan.CustomerId);
+
+
+
+
+            var receivableAccountId = await GetOrCreateCustomerReceivableAccount(loan.CustomerId);
 
             // 🔒 validation
             var remaining = loan.PrincipalAmount - loan.PaidAmount;
@@ -1063,7 +1068,7 @@ namespace Backend.Services.Accounts
                     Status = TransferStatusEnum.Completed,
                     AgencyId = _currentUser.AgencyId,
                     BranchId = _currentUser.BranchId,
-                    UserId =_currentUser.UserId,
+                    UserId = _currentUser.UserId,
                     CreatedAt = DateTime.UtcNow
                 });
 
@@ -1139,7 +1144,7 @@ namespace Backend.Services.Accounts
                     Amount = dto.Amount,
                     AccountId = dto.AccountId,
                     TransactionId = transaction.Id,
-                    ExpenseDate =DateTime.UtcNow,
+                    ExpenseDate = DateTime.UtcNow,
                     AgencyId = _currentUser.AgencyId,
                     BranchId = _currentUser.BranchId,
                     CreatedAt = DateTime.UtcNow
@@ -1246,19 +1251,91 @@ namespace Backend.Services.Accounts
             return account.Id;
         }
 
-        private async Task<Guid> GetCustomerReceivableAccount(Guid customerId)
+        // ← KAN KU DAR HALKAN, ka dib GetCustomerReceivableAccount
+
+        private async Task<Guid> GetOrCreateCustomerReceivableAccount(Guid customerId)
         {
             var account = await _context.Accounts
-                .FirstOrDefaultAsync(a =>
-                    a.AccountType == AccountTypeEnum.RECEIVABLE &&
-                    a.ReferenceId == customerId
-                );
+    .FirstOrDefaultAsync(a =>
+        a.AccountType == AccountTypeEnum.RECEIVABLE &&
+        a.ReferenceId == customerId &&
+        a.AgencyId == _currentUser.AgencyId
+    );
 
-            if (account == null)
-                throw new Exception("Customer receivable account not found");
+            if (account != null)
+                return account.Id;
 
-            return account.Id;
+            var customer = await _context.Customers.FindAsync(customerId);
+
+            // ← CurrencyId u hel agency-ga default-ka ah
+            var defaultCurrencyId = await _context.Currencies
+                .Where(x => x.IsBase)
+                .Select(x => x.Id)
+                .FirstOrDefaultAsync();
+
+            var newAccount = new Account
+            {
+                Id = Guid.NewGuid(),
+                Name = $"{customer?.FullName ?? "Customer"} - Receivable",
+                AccountType = AccountTypeEnum.RECEIVABLE,
+                Nature = AccountNatureEnum.Asset,
+                ReferenceId = customerId,
+                CurrencyId = defaultCurrencyId, // ← KAN KU DAR
+                UserId = _currentUser.UserId,
+                AgencyId = _currentUser.AgencyId,
+                BranchId = _currentUser.BranchId,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _context.Accounts.Add(newAccount);
+            await _context.SaveChangesAsync();
+
+            return newAccount.Id;
         }
+
+        // ← KAN KU DAR HALKAN, ka dib GetCustomerPayableAccount
+        private async Task<Guid> GetOrCreateCustomerPayableAccount(Guid customerId)
+        {
+            var account = await _context.Accounts
+    .FirstOrDefaultAsync(a =>
+        a.AccountType == AccountTypeEnum.PAYABLE &&
+        a.ReferenceId == customerId &&
+        a.AgencyId == _currentUser.AgencyId
+    );
+
+            if (account != null)
+                return account.Id;
+
+            var customer = await _context.Customers.FindAsync(customerId);
+
+            var defaultCurrencyId = await _context.Currencies
+                .Where(x => x.IsBase)
+                .Select(x => x.Id)
+                .FirstOrDefaultAsync();
+
+            var newAccount = new Account
+            {
+                Id = Guid.NewGuid(),
+                Name = $"{customer?.FullName ?? "Customer"} - Payable",
+                AccountType = AccountTypeEnum.PAYABLE,
+                Nature = AccountNatureEnum.Liability,
+                ReferenceId = customerId,
+                CurrencyId = defaultCurrencyId,
+                UserId = _currentUser.UserId,
+                AgencyId = _currentUser.AgencyId,
+                BranchId = _currentUser.BranchId,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _context.Accounts.Add(newAccount);
+            await _context.SaveChangesAsync();
+
+            return newAccount.Id;
+        }
+
+        // ================================
 
         private async Task<Account> GetAccountAsync(Guid accountId)
         {
@@ -1283,7 +1360,7 @@ namespace Backend.Services.Accounts
             {
                 Id = Guid.NewGuid(),
                 ReferenceNo = referenceNo,  // ✔ no await here
-                TransactionType =request.TransactionType,
+                TransactionType = request.TransactionType,
                 Description = request.Description,
                 UserId = _currentUser.UserId,
                 AgencyId = _currentUser.AgencyId,
@@ -1468,12 +1545,12 @@ namespace Backend.Services.Accounts
         }
 
 
-   public async Task<ResponseWrapper<PagedResponse<AccountBalanceSummaryDto>>> GetAccountBalancesSummaryAsync(
-     int page = 1,
-     int pageSize = 10,
-     DateTime? fromDate = null,
-     DateTime? toDate = null,
-     AccountTypeEnum? accountType = null)
+        public async Task<ResponseWrapper<PagedResponse<AccountBalanceSummaryDto>>> GetAccountBalancesSummaryAsync(
+          int page = 1,
+          int pageSize = 10,
+          DateTime? fromDate = null,
+          DateTime? toDate = null,
+          AccountTypeEnum? accountType = null)
         {
             if (page <= 0) page = 1;
             if (pageSize <= 0) pageSize = 10;
@@ -2001,7 +2078,7 @@ namespace Backend.Services.Accounts
 
             return await ExecuteWithCacheAsync(
                 // ✅ include filters in cache key
-                cacheKey: $"{TransactionCacheKey}_{_currentUser.UserId}_P{page}_PS{pageSize}_{fromDate}_{toDate}",
+                cacheKey: $"{TransactionCacheKey}_{_currentUser.UserId}_D_P{page}_PS{pageSize}_{fromDate}_{toDate}",
                 action: async () =>
                 {
                     var query = _context.Deposits
@@ -2614,7 +2691,7 @@ namespace Backend.Services.Accounts
                     // 🔥 FILTER: ONLY exchange accounts
                     query = query.Where(x =>
                         x.AccountType == AccountTypeEnum.Expense
-                        
+
                     );
 
                     var data = await query
@@ -2733,10 +2810,6 @@ namespace Backend.Services.Accounts
             );
         }
 
-
-
-
-
         public async Task<ResponseWrapper<List<CurrencyLookupDto>>> GetCurrencyLookupAsync()
         {
 
@@ -2782,7 +2855,7 @@ namespace Backend.Services.Accounts
                 ProfitRate = dto.ProfitRate,
                 AgencyId = _currentUser.AgencyId,
                 BranchId = _currentUser.BranchId,
-                UserId =_currentUser.UserId,
+                UserId = _currentUser.UserId,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
             };
@@ -2855,11 +2928,11 @@ namespace Backend.Services.Accounts
                         {
                             ReferenceNo = x.ReferenceNo,
                             Status = x.Status,
-                            TransactionType =x.TransactionType,
+                            TransactionType = x.TransactionType,
                             TotalAmount = Math.Round((decimal)x.TotalAmount, 2),
                             CreatedAt = x.CreatedAt,
-                            Username =x.User.FirstName
-                            
+                            Username = x.User.FirstName
+
                         })
                         .ToListAsync();
 

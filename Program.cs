@@ -15,7 +15,7 @@ var builder = WebApplication.CreateBuilder(args);
 // =====================================================
 
 // LOAD ENV FILE
-Env.Load(Path.Combine(builder.Environment.ContentRootPath, ".env"));
+Env.Load(Path.Combine(builder.Environment.ContentRootPath, ".env.local"));
 // read port from env
 var urls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
 
@@ -30,7 +30,6 @@ Console.WriteLine("JWT_KEY: " + Environment.GetEnvironmentVariable("JWT_KEY"));
 // 1️⃣ SERVICES (DB, Identity, JWT, App, Infra)
 // =====================================================
 builder.Services.AddWebApiServices(builder.Configuration);
-
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {

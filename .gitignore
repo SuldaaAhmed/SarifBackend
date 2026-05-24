@@ -1,9 +1,14 @@
-.env
-
-
-docker-compose
-Dockerfile
-.env.docker
-
+# Build folders
 bin/
 obj/
+
+# Visual Studio
+.vs/
+
+# Environment files
+.env
+.env.local
+.env.docker
+
+# Docker (optional - only if you don't want to track)
+docker-compose.override.yml
