@@ -386,13 +386,105 @@ namespace Backend.Services.Implementations
 
 
 
-   
-
-      
-
-     
 
 
+
+
+
+
+        public async Task<IdentityResult> AssignRoleToUserAsync(
+            string userId,
+            string roleName)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return IdentityResult.Failed(new IdentityError
+                {
+                    Code = "UserIdRequired",
+                    Description = "User ID is required."
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(roleName))
+            {
+                return IdentityResult.Failed(new IdentityError
+                {
+                    Code = "RoleNameRequired",
+                    Description = "Role name is required."
+                });
+            }
+
+            roleName = roleName.Trim();
+
+            var user = await _userManager.FindByIdAsync(userId);
+
+            if (user == null)
+            {
+                return IdentityResult.Failed(new IdentityError
+                {
+                    Code = "UserNotFound",
+                    Description = "The specified user was not found."
+                });
+            }
+
+            var roleExists = await _roleManager.RoleExistsAsync(roleName);
+
+            if (!roleExists)
+            {
+                return IdentityResult.Failed(new IdentityError
+                {
+                    Code = "RoleNotFound",
+                    Description = $"The role '{roleName}' does not exist."
+                });
+            }
+
+            // Get all roles currently assigned to the user
+            var currentRoles = await _userManager.GetRolesAsync(user);
+
+            // Check whether the requested role is already assigned
+            var alreadyHasRequestedRole = currentRoles.Any(role =>
+                string.Equals(
+                    role,
+                    roleName,
+                    StringComparison.OrdinalIgnoreCase));
+
+            // Remove all roles except the requested role
+            var rolesToRemove = currentRoles
+                .Where(role => !string.Equals(
+                    role,
+                    roleName,
+                    StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+            if (rolesToRemove.Length > 0)
+            {
+                var removeResult = await _userManager.RemoveFromRolesAsync(
+                    user,
+                    rolesToRemove);
+
+                if (!removeResult.Succeeded)
+                {
+                    return removeResult;
+                }
+            }
+
+            // The user already has the requested role
+            if (alreadyHasRequestedRole)
+            {
+                return IdentityResult.Success;
+            }
+
+            // Assign the new role
+            var addResult = await _userManager.AddToRoleAsync(user, roleName);
+
+            // Restore previous roles if assigning the new role fails
+            if (!addResult.Succeeded && rolesToRemove.Length > 0)
+            {
+                await _userManager.AddToRolesAsync(user, rolesToRemove);
+            }
+
+            return addResult;
+        }
 
 
 

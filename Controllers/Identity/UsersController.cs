@@ -1,14 +1,17 @@
 ﻿using Backend.DTOs.Requests.Identity;
+using Backend.DTOs.Responses.Identity;
 using Backend.Interfaces.Identity;
 using Backend.Services.Implementations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Backend.Controllers.Identity
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class UsersController : ControllerBase
     {
         private readonly IUserService  _userService;
@@ -92,6 +95,7 @@ namespace Backend.Controllers.Identity
          
         }
 
+    
 
 
 
@@ -99,7 +103,41 @@ namespace Backend.Controllers.Identity
 
 
 
+ [Authorize(Roles = "Administrator,Admin")]
+        [HttpPost("assign-role/{userId}")]
+        public async Task<IActionResult> AssignRoleToUser(
+    string userId,
+    [FromBody] AssignRoleRequest request)
+        {
+            if (!ModelState.IsValid)
+                return ValidationProblem(ModelState);
 
+            var result = await _userService.AssignRoleToUserAsync(
+                userId,
+                request.RoleName);
+
+            if (result.Succeeded)
+            {
+                return Ok(new
+                {
+                    success = true,
+                    message = $"Role '{request.RoleName}' assigned successfully.",
+                    userId,
+                    roleName = request.RoleName
+                });
+            }
+
+            return BadRequest(new
+            {
+                success = false,
+                message = "Could not assign the role.",
+                errors = result.Errors.Select(error => new
+                {
+                    error.Code,
+                    error.Description
+                })
+            });
+        }
 
 
 

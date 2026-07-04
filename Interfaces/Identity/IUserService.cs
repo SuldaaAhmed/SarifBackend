@@ -2,6 +2,7 @@
 using Backend.DTOs.Responses.Identity;
 using Backend.DTOs.Responses.Setup;
 using Backend.Wrapper;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.Data;
 
 namespace Backend.Interfaces.Identity
@@ -29,6 +30,11 @@ namespace Backend.Interfaces.Identity
         Task<bool> CreateRoleAsync(string name, string? description);
 
         Task<bool> UpdateRoleAsync(string roleId, string name, string? description);
+
+
+        Task<IdentityResult> AssignRoleToUserAsync(
+         string userId,
+         string roleName);
 
 
 

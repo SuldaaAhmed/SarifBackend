@@ -600,7 +600,7 @@ public class SetupService : CacheService, ISetupService
 
                 // 🔹 STEP 3: GET MENUS
                 var menus = await _context.Menus
-                    .Where(x => x.UserId == _currentUser.UserId)
+                    //.Where(x => x.UserId == _currentUser.UserId)
                     .Include(x => x.Module)
                     .Include(x => x.MenuPermissions)
                         .ThenInclude(mp => mp.Permission)
