@@ -1335,8 +1335,34 @@ public class SetupService : CacheService, ISetupService
             errorMessage: "Error fetching permission"
         );
     }    // ================================
-    // UPDATE
-    // ================================
+         // UPDATE
+         // ================================
+
+
+    public async Task<ResponseWrapper<List<PermissionDto>>> GetAllPermissionsAsync()
+    {
+        return await ExecuteWithCacheAsync(
+            cacheKey: $"{PermissionCacheKey}_{_currentUser.UserId}_All",
+            action: async () =>
+            {
+                var mapped = await _context.Permissions
+                    .Where(x => x.UserId == _currentUser.UserId)
+                    .AsNoTracking()
+                    .OrderByDescending(x => x.CreatedAt)
+                    .ThenBy(x => x.Id)
+                    .ProjectTo<PermissionDto>(_mapper.ConfigurationProvider)
+                    .ToListAsync();
+
+                return mapped;
+            },
+            successMessageFactory: result => $"{result.Count} Permissions fetched",
+            cacheMessage: "permissions fetched from cache",
+            errorMessage: "Error fetching permissions"
+        );
+    }
+
+
+
     public async Task<ResponseWrapper<bool>> UpdatePermissionAsync(int id, UpdatePermissionDto dto)
     {
         return await ExecuteWriteAsync(async () =>

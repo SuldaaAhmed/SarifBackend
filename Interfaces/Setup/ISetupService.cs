@@ -53,7 +53,7 @@ namespace Backend.Interfaces.Setup
         Task<ResponseWrapper<bool>> UpdateMenuAsync(int id, UpdateMenuDto dto);
 
         Task<ResponseWrapper<bool>> DeleteMenuAsync(int  id);
-
+        Task<ResponseWrapper<List<PermissionDto>>> GetAllPermissionsAsync();
 
 
 

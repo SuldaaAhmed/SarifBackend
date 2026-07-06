@@ -238,6 +238,13 @@ public async Task<IActionResult> GetSummaryMenus([FromQuery] int page = 1, [From
             return Ok(result);
         }
 
+        [HttpGet("permissions")]
+        public async Task<IActionResult> GetAllPermissionsAsync()
+        {
+            var result = await _setupService.GetAllPermissionsAsync();
+            return Ok(result);
+        }
+
         [HttpPut("permission/{id}")]
         public async Task<IActionResult> UpdatePermission(int id, [FromBody] UpdatePermissionDto dto)
         {
