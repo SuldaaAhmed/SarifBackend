@@ -103,7 +103,7 @@ namespace Backend.Controllers.Identity
 
 
 
- [Authorize(Roles = "Administrator,Admin")]
+
         [HttpPost("assign-role/{userId}")]
         public async Task<IActionResult> AssignRoleToUser(
     string userId,
@@ -137,6 +137,34 @@ namespace Backend.Controllers.Identity
                     error.Description
                 })
             });
+        }
+
+        [HttpGet("with-roles")]
+        public async Task<IActionResult> GetAllUsersWithRoles(
+      [FromQuery] int page = 1,
+      [FromQuery] int pageSize = 10)
+        {
+            var response = await _userService
+                .GetAllUsersWithRoleAsync(page, pageSize);
+
+            if (response.Success)
+                return Ok(response);
+
+            return BadRequest(response);
+        }
+
+
+        [HttpGet("{userId}/with-roles")]
+        public async Task<IActionResult> GetUserWithRoles(
+    [FromRoute] string userId)
+        {
+            var response = await _userService
+                .GetUserWithRolesAsync(userId);
+
+            if (response.Success)
+                return Ok(response);
+
+            return NotFound(response);
         }
 
 

@@ -14,7 +14,12 @@ namespace Backend.Interfaces.Identity
         Task<ResponseWrapper<string>> UpdateUserAsync(string userId, UpdateUserRequest request);
             Task<ResponseWrapper<string>> DeleteUserAsync(string userId);
         Task<ResponseWrapper<string>> ConfirmEmailAsync(string userId, string token);
-   
+        Task<ResponseWrapper<UserResponses>> GetUserWithRolesAsync(string userId);
+
+        Task<ResponseWrapper<PagedResponse<UserResponses>>> GetAllUsersWithRoleAsync(
+       int page = 1,
+       int pageSize = 10);
+
 
         Task<ResponseWrapper<PagedResponse<UserResponses>>> GetAllUsersAsync(int page = 1, int pageSize = 10);
 

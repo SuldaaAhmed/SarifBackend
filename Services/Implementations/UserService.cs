@@ -488,6 +488,156 @@ namespace Backend.Services.Implementations
 
 
 
+        public async Task<ResponseWrapper<UserResponses>> GetUserWithRolesAsync(
+    string userId)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    return await ResponseWrapper<UserResponses>.FailureAsync(
+                        "User ID is required.");
+                }
+
+                var user = await _userManager.Users
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.Id == userId);
+
+                if (user == null)
+                {
+                    return await ResponseWrapper<UserResponses>.FailureAsync(
+                        "User not found.");
+                }
+
+                var roles = await (
+                    from userRole in _context.UserRoles
+                    join role in _context.Roles
+                        on userRole.RoleId equals role.Id
+                    where userRole.UserId == user.Id
+                    select role.Name
+                )
+                .Where(roleName => roleName != null)
+                .ToListAsync();
+
+                var response = new UserResponses
+                {
+                    Id = user.Id,
+                    UserName = user.UserName,
+                    Email = user.Email,
+                    Phone = user.PhoneNumber,
+                    Isactive = user.IsActive,
+                    Gender = user.Gender,
+                    FullName = user.FirstName,
+                    Address = user.Address,
+
+                    Role = roles.Any()
+                        ? string.Join(", ", roles)
+                        : "No Role"
+                };
+
+                return await ResponseWrapper<UserResponses>.SuccessAsync(
+                    response,
+                    "User with roles fetched successfully.");
+            }
+            catch (Exception ex)
+            {
+                return await ResponseWrapper<UserResponses>.FailureAsync(
+                    $"Error fetching user: {ex.Message}");
+            }
+        }
+
+
+
+
+        public async Task<ResponseWrapper<PagedResponse<UserResponses>>>
+    GetAllUsersWithRoleAsync(int page = 1, int pageSize = 10)
+        {
+            if (page < 1)
+                page = 1;
+
+            if (pageSize < 1)
+                pageSize = 10;
+
+            pageSize = Math.Min(pageSize, 100);
+
+            var cacheKey = $"{CacheKey}_WithRoles_{page}_{pageSize}";
+
+            return await ExecuteWithCacheAsync(
+                cacheKey: cacheKey,
+                action: async () =>
+                {
+                    var query = _userManager.Users
+                        .AsNoTracking()
+                        .OrderByDescending(user => user.CreatedAt);
+
+                    var totalCount = await query.CountAsync();
+
+                    var users = await query
+                        .Skip((page - 1) * pageSize)
+                        .Take(pageSize)
+                        .ToListAsync();
+
+                    var userIds = users
+                        .Select(user => user.Id)
+                        .ToList();
+
+                    var userRoles = await (
+                        from userRole in _context.UserRoles
+                        join role in _context.Roles
+                            on userRole.RoleId equals role.Id
+                        where userIds.Contains(userRole.UserId)
+                        select new
+                        {
+                            userRole.UserId,
+                            RoleName = role.Name
+                        }
+                    ).ToListAsync();
+
+                    var rolesByUser = userRoles
+                        .Where(item => !string.IsNullOrWhiteSpace(item.RoleName))
+                        .GroupBy(item => item.UserId)
+                        .ToDictionary(
+                            group => group.Key,
+                            group => group
+                                .Select(item => item.RoleName!)
+                                .ToList()
+                        );
+
+                    var result = users.Select(user =>
+                    {
+                        rolesByUser.TryGetValue(user.Id, out var roles);
+
+                        return new UserResponses
+                        {
+                            Id = user.Id,
+                            UserName = user.UserName,
+                            Email = user.Email,
+                            Phone = user.PhoneNumber,
+                            Isactive = user.IsActive,
+                            Gender = user.Gender,
+                            FullName = user.FirstName,
+                            Address = user.Address,
+                            Role = roles != null && roles.Count > 0
+                                ? string.Join(", ", roles)
+                                : "No Role"
+                        };
+                    }).ToList();
+
+                    return new PagedResponse<UserResponses>(
+                        result,
+                        page,
+                        pageSize,
+                        totalCount
+                    );
+                },
+                successMessageFactory: result =>
+                    $"{result.Data.Count} of {result.TotalRecords} users fetched with roles",
+                cacheMessage: "Users with roles fetched from cache",
+                errorMessage: "Error fetching users with roles"
+            );
+        }
+
+
 
 
     }
